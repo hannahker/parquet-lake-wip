@@ -54,8 +54,8 @@ def read_partition(table_name: str, iso3: str, partition_date_col: str, year: in
 
 
 def write_partition(df_partition: pd.DataFrame, iso3: str, year: int, table_name: str, container: str, stage: str) -> int:
-    blob_path = f"{table_name}/{PARTITION_COL}={iso3}/year={year}/data.parquet"
-    stratus.upload_parquet_to_blob(df_partition, blob_path, stage=stage, container_name=container)
+    blob_path = f"{table_name}/{PARTITION_COL}={iso3}/{year}.parquet"
+    stratus.upload_parquet_to_blob(df_partition.reset_index(drop=True), blob_path, stage=stage, container_name=container)
     return len(df_partition)
 
 
@@ -92,9 +92,10 @@ def run(table_name: str, container: str, stage: str, mode: str) -> None:
         df = read_partition(table_name, iso3, partition_date_col, year=year_filter)
         if df.empty:
             continue
-        df["_year"] = pd.to_datetime(df[partition_date_col]).dt.year
-        for year, df_year in df.groupby("_year"):
-            rows = write_partition(df_year.drop(columns=["_year"]), iso3, year, table_name, container, stage)
+        years = pd.to_datetime(df[partition_date_col]).dt.year.unique()
+        for year in years:
+            df_year = df[pd.to_datetime(df[partition_date_col]).dt.year == year]
+            rows = write_partition(df_year, iso3, year, table_name, container, stage)
             total_rows += rows
             print(f"  {iso3}/{year}: {rows:,} rows")
 
